@@ -1,0 +1,68 @@
+package services;
+
+import forms.LoginForm;
+import models.Auth;
+import models.User;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import repository.AuthRepository;
+import repository.UsersRepository;
+
+import java.sql.SQLException;
+import java.util.Optional;
+import java.util.UUID;
+
+
+import java.util.Optional;
+
+/**
+ * 11.11.2018
+ * LoginServiceImpl
+ *
+ * @author Guzel Musina (ITIS)
+ * @version v1.0
+ */
+public class LoginServiceImpl implements LoginService {
+
+
+    private AuthRepository authRepository;
+
+    private UsersRepository usersRepository;
+
+    private BCryptPasswordEncoder encoder;
+
+    public LoginServiceImpl(AuthRepository authRepository, UsersRepository usersRepository) {
+        this.authRepository = authRepository;
+        this.usersRepository = usersRepository;
+        this.encoder = new BCryptPasswordEncoder();
+    }
+    @Override
+    public Optional<String> login(LoginForm loginForm) {
+        User user = usersRepository.findByEmail(loginForm.getEmail());
+        if (user != null && encoder.matches(loginForm.getPassword(), user.getPasswordHash())) {
+            String cookieValue = UUID.randomUUID().toString();
+            Auth auth = Auth.builder()
+                    .cookieValue(cookieValue)
+                    .user(user)
+                    .build();
+            authRepository.save(auth);
+
+            return Optional.of(cookieValue);
+        } else return Optional.empty();
+    }
+
+    @Override
+    public boolean isExistByCookie(String cookieValue) {
+        return authRepository.findByCookieValue(cookieValue).isPresent();
+
+    }
+
+    @Override
+    public User getUserByCookie(String cookie) {
+        Auth auth = authRepository.findByCookieValue(cookie).get();
+        return User.builder()
+                .id(auth.getId())
+                .email(usersRepository.findOne(auth.getId()).getEmail())
+                .passwordHash(usersRepository.findOne(auth.getId()).getPasswordHash())
+                .build();
+    }
+}
